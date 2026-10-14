@@ -1,0 +1,4 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),sim=require('./web/simulation.js');
+const data=JSON.parse(fs.readFileSync('web/roads.json'));assert(data.links.length>30);sim.configure(data);const e=new sim.Experiment();
+for(let t=0;t<60;t++){e.step({scenario:'compound',strategy:'combined',demand:1.3});const s=e.snapshot();for(const key of sim.strategies){assert(Math.abs(s.strategies[key].balanceError)<1e-6);e.branches[key].links.forEach((link,i)=>{assert(link.occupancy<=data.links[i].storage+1e-7);assert(link.source>=0&&link.queue>=0);});}}
+assert.equal(e.snapshot().assumptions.links,data.links.length);assert.equal(e.snapshot().model,'osm-road-network-prototype');console.log('Actual OSM network validated: '+data.links.length+' directed links, 60 minutes, four strategies');

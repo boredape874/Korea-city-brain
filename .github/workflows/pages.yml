@@ -32,6 +32,8 @@ jobs:
         run: python3 -m unittest -v
       - name: Test traffic experiment
         run: node test_simulation.cjs
+      - name: Test actual OSM network
+        run: node test_real_network.cjs
       - name: Test dashboard wiring
         run: node test_app.cjs
       - name: Prepare static demo
