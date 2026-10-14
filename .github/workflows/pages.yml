@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
 permissions:
   contents: read
   pages: write
@@ -22,6 +24,10 @@ jobs:
         run: python3 -m unittest -v
       - name: Prepare static demo
         run: cp data/demo.json web/demo.json
+      - name: Collect official traffic snapshot
+        env:
+          ITS_API_KEY: ${{ secrets.ITS_API_KEY }}
+        run: python3 collect_snapshot.py
       - uses: actions/configure-pages@v5
         with:
           enablement: true

@@ -1,4 +1,10 @@
 import unittest
+from unittest.mock import patch
+import tempfile
+import os
+import json
+from pathlib import Path
+from collect_snapshot import collect
 from server import analyze, normalize, traffic
 
 class Tests(unittest.TestCase):
@@ -12,6 +18,17 @@ class Tests(unittest.TestCase):
             normalize({'header': {'resultCode': '99'}})
     def test_demo_explicit(self):
         self.assertEqual(traffic()['mode'], 'demo')
+    def test_snapshot_excludes_provider_extra_fields(self):
+        original = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                os.chdir(directory)
+                Path('web').mkdir()
+                with patch('collect_snapshot.traffic', return_value={'mode':'live', 'rows':[{'speed':12,'apiKey':'secret','url':'secret'}]}):
+                    collect()
+                self.assertEqual(json.loads(Path('web/traffic-live.json').read_text())['rows'], [{'speed':12}])
+        finally:
+            os.chdir(original)
 
 if __name__ == '__main__':
     unittest.main()

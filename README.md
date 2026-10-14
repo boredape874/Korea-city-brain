@@ -4,7 +4,7 @@
 
 ## 웹 접속 · GitHub Pages
 
-배포가 성공하면 https://boredape874.github.io/Korea-city-brain/ 에서 이용할 수 있습니다. main 브랜치에 변경을 올리면 GitHub Actions가 테스트 후 web 디렉터리를 자동 배포합니다. 공개 웹에서는 실제 지도와 합성 교통 시나리오 분석, GeoJSON 입력, 결과 다운로드를 사용할 수 있습니다. Python 서버가 필요한 ITS 실시간 호출은 Pages에서 실행되지 않습니다.
+배포가 성공하면 https://boredape874.github.io/Korea-city-brain/ 에서 이용할 수 있습니다. main 브랜치에 변경을 올리면 GitHub Actions가 테스트 후 web 디렉터리를 자동 배포합니다. 공개 웹에서는 실제 지도와 합성 교통 시나리오 분석, GeoJSON 입력, 결과 다운로드를 사용할 수 있습니다. Actions가 ITS를 호출하고 결과 스냅샷을 Pages에 배포합니다. 브라우저에서 인증키를 다루지 않습니다.
 
 첫 배포에서 Pages 자동 활성화가 권한 때문에 실패하면 저장소 Settings → Pages → Source를 GitHub Actions로 선택하고 Actions에서 배포 워크플로를 다시 실행하세요. API 키를 GitHub Pages 코드나 브라우저 입력에 넣지 마세요.
 
@@ -81,3 +81,12 @@ python -m unittest -v
 ```
 
 Python 어댑터·분류 테스트 및 로컬 HTTP 응답 점검을 수행했습니다. 실제 ITS 키 호출과 브라우저 지도 렌더링은 검증되지 않았습니다. Leaflet 1.9.4와 OSM 타일은 외부 네트워크가 필요합니다. 운영 확대 전 지도 제공 정책과 데이터 이용 조건을 확인하세요.
+
+
+## Actions 실측 수집 설정
+
+Settings → Secrets and variables → Actions → New repository secret에서 `ITS_API_KEY`를 등록하세요. Actions 워크플로를 실행하면 ITS 조회 결과가 Pages에 배포됩니다. 매시 7/22/37/52분(15분 간격) 수집을 예약합니다. GitHub 실행은 지연되거나 누락될 수 있어 실시간 관제 주기를 보장하지 않습니다. 수집 시각이 20분 이상 지난 결과는 최신으로 표시하지 않습니다. 제공기관 관측시각의 별도 노후 판정은 아직 구현하지 않았습니다.
+
+키가 없거나 요청이 실패하면 데이터 없음으로 표시합니다. 실제 키 호출은 미검증입니다. 지도 도로 선형은 표준노드링크 GeoJSON으로 결합합니다. 실측 JSON은 공개 Pages에 배포되므로 데이터 재공개 조건을 확인하세요.
+
+공식 데이터 비교: [DATA_SOURCES.md](DATA_SOURCES.md)
