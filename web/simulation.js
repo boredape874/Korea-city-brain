@@ -7,7 +7,7 @@
  const total=(a,k)=>a.reduce((n,s)=>n+s[k],0);
  function makeBranch(){return {links:links.map(()=>({queue:0,transit:[],arrivals:0,departures:0,delay:0,source:0,occupancy:0,blocked:0,green:true,lastFlow:0})),generated:0,exited:0,sourceDelay:0,totalTime:0,peakQueue:0};}
  function effects(scenario,minute,manual){const factors=links.map(()=>1),failed=new Set(),events=[];const event=(ids,factor,label)=>{ids.forEach(i=>factors[i]*=factor);events.push({label,links:ids.map(i=>links[i].key)});};
-  if(manual.incident)event([Math.max(0,Math.min(35,Number(manual.target)||20))],.45,'수동 사고');
+  if(manual.incident)event([Math.max(0,Math.min(links.length-1,Number(manual.target)||20))],.45,'수동 사고');
   if(minute>=20&&minute<75){if(['incident','compound'].includes(scenario))event([20],.45,'병목 사고');if(scenario==='multi')event([13,20,28],.45,'동시 사고');}
   if(['construction','heavy'].includes(scenario))event([18,19],.6,'2개 구간 공사');
   if(['rain','compound'].includes(scenario))event(links.map((_,i)=>i),.75,'폭우 · 전체 처리용량 저하');
@@ -22,7 +22,7 @@
    const phase=(this.tick*10)%90;
    const greens=links.map((l,i)=>{if(effect.failed.has(i))return 0;if(!l.signal)return 1;const extended=['signal','combined'].includes(strategy)&&states[i].queue>8;return Math.max(0,Math.min(10,(extended?60:45)-phase))/10;});
    const sending=states.map((s,i)=>Math.min(s.queue,links[i].capacity*effect.factors[i]*dt*greens[i]));
-   const shares=links.map(l=>{if(!l.next.length)return [];if(!['reroute','combined'].includes(strategy))return [.8,.2];const costs=l.next.map(i=>states[i].occupancy/links[i].storage+states[i].queue/links[i].capacity+(1-effect.factors[i])+ (effect.failed.has(i)?2:0));const first=Math.max(.2,Math.min(.8,.65+(costs[1]-costs[0])*.4));return [first,1-first];});
+   const shares=links.map(l=>{if(!l.next.length)return [];if(!['reroute','combined'].includes(strategy))return l.next.map(()=>1/l.next.length);const costs=l.next.map(i=>states[i].occupancy/links[i].storage+states[i].queue/links[i].capacity+(1-effect.factors[i])+ (effect.failed.has(i)?2:0));const weights=costs.map(cost=>1/(.15+cost));const sum=weights.reduce((a,b)=>a+b,0);return weights.map(v=>v/sum);});
    const requested=links.map(()=>0);links.forEach((l,i)=>l.next.forEach((target,k)=>requested[target]+=sending[i]*shares[i][k]));
    const receiveFactor=requested.map((n,i)=>n?Math.min(1,space[i]/n):1);
    const outgoing=links.map((l,i)=>sending[i]*(l.next.length?Math.min(...l.next.map(t=>receiveFactor[t])):1));
@@ -42,5 +42,6 @@
   }
  }
  function compare(options,seeds=[11,22,33,44,55]){return seeds.map(seed=>{const e=new Experiment(seed);for(let i=0;i<120;i++)e.step(options);return e.snapshot();});}
- const api={Experiment,compare,links,presets,strategies};if(typeof module!=='undefined')module.exports=api;root.CitySimulation=api;
+ function configure(actual){if(!actual.links||!actual.links.length)throw Error('Actual road geometry required');links.splice(0,links.length,...actual.links);}
+ const api={Experiment,compare,links,presets,strategies,configure};if(typeof module!=='undefined')module.exports=api;root.CitySimulation=api;
 })(typeof window!=='undefined'?window:globalThis);

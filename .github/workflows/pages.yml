@@ -20,6 +20,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: road-cache
+        with:
+          path: web/roads.json
+          key: jangyu-osm-roads-v1
+      - name: Fetch actual Jangyu road geometry
+        if: steps.road-cache.outputs.cache-hit != 'true'
+        run: python3 fetch_roads.py
       - name: Test Python adapter
         run: python3 -m unittest -v
       - name: Test traffic experiment
