@@ -1,55 +1,46 @@
-/* Finite-storage fluid link queues with free-flow transit and signal gates.
-   Research-informed demonstrator, not SUMO and not calibrated to Gimhae. */
+/* Synthetic 36-link finite-storage network. Fluid vehicles; uncalibrated. */
 (function(root){
- const links=[
-  {linkId:'demo-1',key:'A',roadName:'A · 장유 가상 병목',lat:35.203,lng:128.812,capacity:48,storage:90,freeSpeed:50,length:.6},
-  {linkId:'demo-2',key:'B',roadName:'B · 율하 가상 우회',lat:35.174,lng:128.815,capacity:32,storage:70,freeSpeed:40,length:.9},
-  {linkId:'demo-3',key:'C',roadName:'C · 김해 가상 합류',lat:35.229,lng:128.881,capacity:80,storage:100,freeSpeed:50,length:.7},
-  {linkId:'demo-4',key:'D',roadName:'D · 관동 가상 진입',lat:35.185,lng:128.8,capacity:44,storage:100,freeSpeed:40,length:.5}
- ];
- const dt=1/6, sum=(a,k)=>a.reduce((v,s)=>v+s[k],0);
- function rng(seed){let state=seed>>>0;return ()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};}
+ const dt=1/6, strategies=['none','signal','reroute','combined'];
+ const links=Array.from({length:36},(_,i)=>{const column=Math.floor(i/6),row=i%6;return {linkId:'sim-'+i,key:'R'+String(i+1).padStart(2,'0'),roadName:'R'+String(i+1).padStart(2,'0')+' · '+['진입','분산','생활권','병목','합류','출구'][column]+' 가상 도로',column,row,lat:35.17+row*.014,lng:128.77+column*.022,capacity:column===3?42:54,storage:column===3?45:65,freeSpeed:column%2?40:50,length:.5,signal:column===2||column===4,next:column===5?[]:[row,...(row<5?[row+1]:[row-1])].map(r=>(column+1)*6+r)};});
+ const presets={normal:{label:'평시',demand:1},peak:{label:'아침 출근',demand:1.5},evening:{label:'저녁 퇴근',demand:1.4},school:{label:'등교 집중',demand:1.2},incident:{label:'단일 사고',demand:1.2},construction:{label:'도로 공사',demand:1.1},rain:{label:'폭우',demand:1.1},festival:{label:'행사 종료',demand:1.4},signalFailure:{label:'신호 고장',demand:1.2},multi:{label:'동시 사고 3곳',demand:1.3},heavy:{label:'고수요 + 공사',demand:1.8},compound:{label:'폭우 + 사고 + 신호 고장',demand:1.5}};
+ function rng(seed){let s=seed>>>0;return ()=>{s=(Math.imul(1664525,s)+1013904223)>>>0;return s/4294967296;};}
+ const total=(a,k)=>a.reduce((n,s)=>n+s[k],0);
  function makeBranch(){return {links:links.map(()=>({queue:0,transit:[],arrivals:0,departures:0,delay:0,source:0,occupancy:0,blocked:0,green:true,lastFlow:0})),generated:0,exited:0,sourceDelay:0,totalTime:0,peakQueue:0};}
+ function effects(scenario,minute,manual){const factors=links.map(()=>1),failed=new Set(),events=[];const event=(ids,factor,label)=>{ids.forEach(i=>factors[i]*=factor);events.push({label,links:ids.map(i=>links[i].key)});};
+  if(manual.incident)event([Math.max(0,Math.min(35,Number(manual.target)||20))],.45,'수동 사고');
+  if(minute>=20&&minute<75){if(['incident','compound'].includes(scenario))event([20],.45,'병목 사고');if(scenario==='multi')event([13,20,28],.45,'동시 사고');}
+  if(['construction','heavy'].includes(scenario))event([18,19],.6,'2개 구간 공사');
+  if(['rain','compound'].includes(scenario))event(links.map((_,i)=>i),.75,'폭우 · 전체 처리용량 저하');
+  if(['signalFailure','compound'].includes(scenario)&&minute>=30&&minute<90){failed.add(14);failed.add(26);events.push({label:'신호 고장 · 안전 정지',links:['R15','R27']});}
+  return {factors,failed,events};
+ }
  class Experiment{
-  constructor(seed=42){this.seed=seed>>>0;this.random=rng(this.seed);this.minute=0;this.tick=0;this.baseline=makeBranch();this.response=makeBranch();this.history=[];this.events=[];this.lastOptions={demand:1,incident:false,response:false};}
-  advance(branch,arrivals,options,treatment){
-   const states=branch.links;
-   // All source demand remains accounted for even when entry is blocked.
-   states.forEach((s,i)=>{s.source+=arrivals[i];branch.generated+=arrivals[i];const arrived=s.transit.filter(p=>p.tick<=this.tick);s.queue+=arrived.reduce((n,p)=>n+p.count,0);s.transit=s.transit.filter(p=>p.tick>this.tick);});
-   const occupancy=states.map(s=>s.queue+s.transit.reduce((n,p)=>n+p.count,0));
-   const space=links.map((l,i)=>Math.max(0,l.storage-occupancy[i]));
+  constructor(seed=42){this.seed=seed>>>0;this.random=rng(this.seed);this.minute=0;this.tick=0;this.branches=Object.fromEntries(strategies.map(k=>[k,makeBranch()]));this.baseline=this.branches.none;this.response=this.branches.none;this.strategyHistory=[];this.history=[];this.events=[];this.lastOptions={demand:1,scenario:'normal',strategy:'none',incident:false,target:20};}
+  advance(branch,arrivals,options,strategy,effect){const states=branch.links;
+   states.forEach((s,i)=>{s.source+=arrivals[i];branch.generated+=arrivals[i];const ready=s.transit.filter(p=>p.tick<=this.tick);s.queue+=ready.reduce((n,p)=>n+p.count,0);s.transit=s.transit.filter(p=>p.tick>this.tick);});
+   const space=links.map((l,i)=>Math.max(0,l.storage-states[i].queue-states[i].transit.reduce((n,p)=>n+p.count,0)));
    const phase=(this.tick*10)%90;
-   const greenShare=states.map((s,i)=>{const duration=i===0?(treatment?55:40):i===2?55:90;return Math.max(0,Math.min(10,duration-phase))/10;});const green=greenShare.map(v=>v>0);
-   const sending=states.map((s,i)=>Math.min(s.queue,links[i].capacity*dt*(options.incident&&i===0?.45:1)*greenShare[i]));
-   const ratio=treatment?.6:.8;
-   const out=[0,0,sending[2],0];
-   // A and B share downstream receiving space proportionally.
-   const merged=sending[0]+sending[1];const factor=merged?Math.min(1,space[2]/merged):0;
-   out[0]=sending[0]*factor;out[1]=sending[1]*factor;space[2]-=out[0]+out[1];
-   out[3]=Math.min(sending[3],space[0]/ratio,space[1]/(1-ratio));
-   space[0]-=out[3]*ratio;space[1]-=out[3]*(1-ratio);
-   const enter=(i,count)=>{if(count<=0)return;states[i].transit.push({tick:this.tick+Math.max(1,Math.ceil(links[i].length/links[i].freeSpeed*60/dt)),count});states[i].arrivals+=count;};
-   states.forEach((s,i)=>{s.queue=Math.max(0,s.queue-out[i]);s.departures+=out[i];s.green=green[i];s.lastFlow=out[i]/dt;s.blocked=Math.max(0,sending[i]-out[i]);});
-   enter(0,out[3]*ratio);enter(1,out[3]*(1-ratio));enter(2,out[0]+out[1]);branch.exited+=out[2];
-   states.forEach((s,i)=>{const admitted=Math.min(s.source,space[i]);s.source-=admitted;enter(i,admitted);s.occupancy=s.queue+s.transit.reduce((n,p)=>n+p.count,0);s.delay+=s.queue*dt;branch.sourceDelay+=s.source*dt;branch.totalTime+=(s.occupancy+s.source)*dt;});
-   branch.peakQueue=Math.max(branch.peakQueue,sum(states,'queue')+sum(states,'source'));
+   const greens=links.map((l,i)=>{if(effect.failed.has(i))return 0;if(!l.signal)return 1;const extended=['signal','combined'].includes(strategy)&&states[i].queue>8;return Math.max(0,Math.min(10,(extended?60:45)-phase))/10;});
+   const sending=states.map((s,i)=>Math.min(s.queue,links[i].capacity*effect.factors[i]*dt*greens[i]));
+   const shares=links.map(l=>{if(!l.next.length)return [];if(!['reroute','combined'].includes(strategy))return [.8,.2];const costs=l.next.map(i=>states[i].occupancy/links[i].storage+states[i].queue/links[i].capacity+(1-effect.factors[i])+ (effect.failed.has(i)?2:0));const first=Math.max(.2,Math.min(.8,.65+(costs[1]-costs[0])*.4));return [first,1-first];});
+   const requested=links.map(()=>0);links.forEach((l,i)=>l.next.forEach((target,k)=>requested[target]+=sending[i]*shares[i][k]));
+   const receiveFactor=requested.map((n,i)=>n?Math.min(1,space[i]/n):1);
+   const outgoing=links.map((l,i)=>sending[i]*(l.next.length?Math.min(...l.next.map(t=>receiveFactor[t])):1));
+   const enter=(i,n)=>{if(n<=0)return;states[i].transit.push({tick:this.tick+Math.max(1,Math.ceil(links[i].length/links[i].freeSpeed*60/dt)),count:n});states[i].arrivals+=n;};
+   states.forEach((s,i)=>{s.queue=Math.max(0,s.queue-outgoing[i]);s.departures+=outgoing[i];s.green=greens[i]>0;s.lastFlow=outgoing[i]/dt;s.blocked=Math.max(0,sending[i]-outgoing[i]);});
+   links.forEach((l,i)=>{if(!l.next.length)branch.exited+=outgoing[i];l.next.forEach((target,k)=>{const n=outgoing[i]*shares[i][k];enter(target,n);space[target]-=n;});});
+   states.forEach((s,i)=>{const n=Math.min(s.source,Math.max(0,space[i]));s.source-=n;enter(i,n);s.occupancy=s.queue+s.transit.reduce((a,p)=>a+p.count,0);s.delay+=s.queue*dt;branch.sourceDelay+=s.source*dt;branch.totalTime+=(s.occupancy+s.source)*dt;});branch.peakQueue=Math.max(branch.peakQueue,total(states,'queue')+total(states,'source'));
   }
-  step({demand=1,incident=false,response=false}={}){
-   if(!Number.isFinite(demand)||demand<0)throw Error('Invalid demand');if(this.minute>=120)return;
-   const options={demand,incident,response};if(JSON.stringify(options)!==JSON.stringify(this.lastOptions)){this.events.push({minute:this.minute,...options});this.lastOptions=options;}
-   for(let sub=0;sub<6;sub++){
-    const pulse=(1+.2*Math.sin(this.tick/72))*(.9+.2*this.random());
-    const arrivals=[0,6,2,28].map(v=>v*demand*pulse*dt);
-    this.advance(this.baseline,arrivals,options,false);this.advance(this.response,arrivals,options,response);this.tick++;
-   }
-   this.minute++;this.history.push([sum(this.baseline.links,'queue')+sum(this.baseline.links,'source'),sum(this.response.links,'queue')+sum(this.response.links,'source')]);
+  step(input={}){const options={demand:input.demand??1,scenario:input.scenario||'normal',strategy:input.strategy||(input.response?'combined':'none'),incident:!!input.incident,target:Number(input.target??20)};
+   if(!Number.isFinite(options.demand)||options.demand<0||!strategies.includes(options.strategy)||!presets[options.scenario])throw Error('Invalid experiment input');if(this.minute>=120)return;
+   if(JSON.stringify(options)!==JSON.stringify(this.lastOptions))this.events.push({minute:this.minute,...options});this.lastOptions=options;
+   for(let sub=0;sub<6;sub++){const effect=effects(options.scenario,this.tick/6,options);const pulse=(1+.15*Math.sin(this.tick/72))*(.9+.2*this.random());const arrivals=links.map(l=>{if(l.column!==0)return 0;let demand=13+ l.row%3*2;if(options.scenario==='school'&&l.row<2)demand*=1.5;if(options.scenario==='festival'&&this.minute>=45&&this.minute<65)demand*=1.8;return demand*options.demand*pulse*dt;});strategies.forEach(k=>this.advance(this.branches[k],arrivals,options,k,effect));this.tick++;}
+   this.minute++;this.response=this.branches[options.strategy];this.strategyHistory.push(strategies.map(k=>total(this.branches[k].links,'queue')+total(this.branches[k].links,'source')));this.history=this.strategyHistory.map(p=>[p[0],p[strategies.indexOf(options.strategy)]]);
   }
-  snapshot(){
-   const metric=b=>({generated:b.generated,exited:b.exited,inNetwork:sum(b.links,'occupancy'),outside:sum(b.links,'source'),waiting:sum(b.links,'queue')+sum(b.links,'source'),delay:sum(b.links,'delay')+b.sourceDelay,totalVehicleTime:b.totalTime,peakQueue:b.peakQueue,balanceError:b.generated-b.exited-sum(b.links,'occupancy')-sum(b.links,'source')});
-   const base=metric(this.baseline),response=metric(this.response);
-   return {model:'finite-storage-link-queues-v2',seed:this.seed,minute:this.minute,baselineDelay:base.delay,responseDelay:response.delay,baseline:base,response,history:this.history.map(p=>p.slice()),events:this.events.map(p=>({...p})),assumptions:{timeStepSeconds:10,cycleSeconds:90,greenASeconds:40,greenAResponseSeconds:55,greenCSeconds:55,incidentCapacityFactor:.45,diversionShare:.2,network:'D → A/B → C → exit; external arrivals at D/B/C',calibrated:false},rows:links.map((l,i)=>{const s=this.response.links[i];const wait=s.queue/Math.max(1,l.capacity*(i===0?(this.lastOptions.response?55:40)/90:i===2?55/90:1)*(this.lastOptions.incident&&i===0?.45:1));const speed=Math.round(l.length/(l.length/l.freeSpeed+wait/60)*10)/10;return {...l,speed,queue:+s.queue.toFixed(1),occupancy:+s.occupancy.toFixed(1),sourceQueue:+s.source.toFixed(1),green:s.green,blocked:+s.blocked.toFixed(2),flow:+s.lastFlow.toFixed(1),arrivals:s.arrivals,departures:s.departures,level:speed<20?'혼잡':speed<40?'서행':'원활',createdDate:'모의 '+this.minute+'분',recommendation:'대기 '+s.queue.toFixed(1)+'대 · 점유 '+(s.occupancy/l.storage*100).toFixed(0)+'%'+(s.blocked>0?' · 하류 진입 제한':'')};}).sort((a,b)=>a.speed-b.speed)};
+  snapshot(){const metric=b=>({generated:b.generated,exited:b.exited,inNetwork:total(b.links,'occupancy'),outside:total(b.links,'source'),waiting:total(b.links,'queue')+total(b.links,'source'),delay:total(b.links,'delay')+b.sourceDelay,totalVehicleTime:b.totalTime,peakQueue:b.peakQueue,balanceError:b.generated-b.exited-total(b.links,'occupancy')-total(b.links,'source')});const metrics=Object.fromEntries(strategies.map(k=>[k,metric(this.branches[k])]));const selected=this.lastOptions.strategy;const branch=this.branches[selected];const effect=effects(this.lastOptions.scenario,this.minute,this.lastOptions);
+   return {model:'synthetic-36-link-network-v3',seed:this.seed,minute:this.minute,options:{...this.lastOptions},baselineDelay:metrics.none.delay,responseDelay:metrics[selected].delay,baseline:metrics.none,response:metrics[selected],strategies:metrics,history:this.history.map(p=>p.slice()),strategyHistory:this.strategyHistory.map(p=>p.slice()),events:this.events.map(p=>({...p})),activeEvents:effect.events,assumptions:{links:36,timeStepSeconds:10,cycleSeconds:90,baseGreenSeconds:45,adaptiveGreenSeconds:60,network:'six columns × six corridors; directed eastbound branching and merging',calibrated:false,fluidFlow:true},rows:links.map((l,i)=>{const s=branch.links[i];const cap=l.capacity*effect.factors[i]*(l.signal?.5:1);const wait=s.queue/Math.max(.1,cap);const speed=Math.round(l.length/(l.length/l.freeSpeed+wait/60)*10)/10;return {...l,speed,queue:+s.queue.toFixed(1),occupancy:+s.occupancy.toFixed(1),sourceQueue:+s.source.toFixed(1),green:s.green,blocked:+s.blocked.toFixed(2),flow:+s.lastFlow.toFixed(1),incident:effect.factors[i]<1||effect.failed.has(i),arrivals:s.arrivals,departures:s.departures,level:speed<20?'혼잡':speed<40?'서행':'원활',createdDate:'모의 '+this.minute+'분',recommendation:'대기 '+s.queue.toFixed(1)+'대 · 점유 '+(s.occupancy/l.storage*100).toFixed(0)+'%'+(s.blocked>0?' · 하류 제한':'')};}).sort((a,b)=>a.speed-b.speed)};
   }
  }
- function compare(options,seeds=[11,22,33,44,55]){return seeds.map(seed=>{const experiment=new Experiment(seed);for(let i=0;i<120;i++)experiment.step(options);return experiment.snapshot();});}
- const api={Experiment,compare,links};if(typeof module!=='undefined')module.exports=api;root.CitySimulation=api;
+ function compare(options,seeds=[11,22,33,44,55]){return seeds.map(seed=>{const e=new Experiment(seed);for(let i=0;i<120;i++)e.step(options);return e.snapshot();});}
+ const api={Experiment,compare,links,presets,strategies};if(typeof module!=='undefined')module.exports=api;root.CitySimulation=api;
 })(typeof window!=='undefined'?window:globalThis);
