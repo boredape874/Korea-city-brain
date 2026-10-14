@@ -3,6 +3,7 @@ import json
 import math
 import os
 import time
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.request import urlopen
@@ -37,7 +38,17 @@ def normalize(payload):
         items = [items]
     if not isinstance(items, list):
         raise ValueError('unexpected schema')
-    return analyze(items)
+    rows = analyze(items)
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        try:
+            observed = datetime.strptime(str(row.get('createdDate', '')), '%Y%m%d%H%M%S').replace(tzinfo=timezone(timedelta(hours=9)))
+            age = (now - observed).total_seconds()
+            row['ageSeconds'] = round(age)
+            row['quality'] = '시각 이상' if age < -60 else '노후 관측' if age > 600 else '최근 관측'
+        except ValueError:
+            row['quality'] = '관측 시각 미확인'
+    return rows
 
 def traffic(live=False):
     if not live:

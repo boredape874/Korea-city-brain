@@ -16,6 +16,12 @@ class Tests(unittest.TestCase):
     def test_provider_error(self):
         with self.assertRaises(ValueError):
             normalize({'header': {'resultCode': '99'}})
+    def test_old_observation_flagged(self):
+        row = normalize({'body': {'items': [{'speed': 30, 'createdDate': '20200101000000'}]}})[0]
+        self.assertEqual(row['quality'], '노후 관측')
+    def test_missing_time_not_assumed_fresh(self):
+        row = normalize({'body': {'items': [{'speed': 30}]}})[0]
+        self.assertEqual(row['quality'], '관측 시각 미확인')
     def test_demo_explicit(self):
         self.assertEqual(traffic()['mode'], 'demo')
     def test_snapshot_excludes_provider_extra_fields(self):

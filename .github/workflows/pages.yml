@@ -24,6 +24,8 @@ jobs:
         run: python3 -m unittest -v
       - name: Test traffic experiment
         run: node test_simulation.cjs
+      - name: Test dashboard wiring
+        run: node test_app.cjs
       - name: Prepare static demo
         run: cp data/demo.json web/demo.json
       - name: Collect official traffic snapshot
