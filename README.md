@@ -110,3 +110,7 @@ Settings → Secrets and variables → Actions → New repository secret에서 `
 ## 화면 분리
 
 기본 화면은 전용 가상 도로망이며, 실제 지도 보기 버튼으로 OpenStreetMap을 참조할 수 있습니다. 모의 선형을 실제 지도에 겹치지 않습니다. 중앙 도로망에 소통 색상·대기 차량·대표 흐름 이동점을 표시합니다. 좁은 높이에서는 패널을 스크롤하여 확인할 수 있습니다.
+
+## 배포 파일 버전 일치
+
+Actions는 build_static.py로 dist를 생성합니다. CSS·simulation.js·Worker·app.js의 내용 해시를 파일명에 넣고 참조를 함께 바꿉니다. 새 HTML이 이전 캐시의 CSS/JS를 섞어 읽는 문제를 방지합니다. 소스는 기존 파일명으로 유지되므로 로컬 Python 실행도 계속 지원합니다.

@@ -35,9 +35,11 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Build versioned static assets
+        run: python3 build_static.py
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: web
+          path: dist
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
