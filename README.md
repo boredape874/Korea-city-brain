@@ -106,3 +106,7 @@ Settings → Secrets and variables → Actions → New repository secret에서 `
 검증: `node test_simulation.cjs`는 12개 시나리오의 120분 전체에서 36개 링크·4개 대응의 차량 보존, 저장 한도, 공통 수요, 막힌 진입 수요 유지 및 seed 재현을 검사합니다. `node test_app.cjs`는 초기화·일시정지·프리셋·반복 비교·결과 표 연결을 확인합니다. 실제 브라우저 렌더·실제 ITS 호출은 별도 검증이 필요합니다.
 
 설계 근거와 현장 보정 계획: [RESEARCH_NOTES.md](RESEARCH_NOTES.md)
+
+## 화면 분리
+
+기본 화면은 전용 가상 도로망이며, 실제 지도 보기 버튼으로 OpenStreetMap을 참조할 수 있습니다. 모의 선형을 실제 지도에 겹치지 않습니다. 중앙 도로망에 소통 색상·대기 차량·대표 흐름 이동점을 표시합니다. 좁은 높이에서는 패널을 스크롤하여 확인할 수 있습니다.
