@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test Python adapter
         run: python3 -m unittest -v
+      - name: Test traffic experiment
+        run: node test_simulation.cjs
       - name: Prepare static demo
         run: cp data/demo.json web/demo.json
       - name: Collect official traffic snapshot
