@@ -1,0 +1,6 @@
+[
+  {"linkId":"demo-1","roadName":"장유 중심권 시나리오 A","speed":12,"createdDate":"합성 데이터","lat":35.203,"lng":128.812},
+  {"linkId":"demo-2","roadName":"율하 생활권 시나리오 B","speed":28,"createdDate":"합성 데이터","lat":35.174,"lng":128.815},
+  {"linkId":"demo-3","roadName":"김해 중심권 시나리오 C","speed":47,"createdDate":"합성 데이터","lat":35.229,"lng":128.881},
+  {"linkId":"demo-4","roadName":"관동 생활권 시나리오 D","speed":18,"createdDate":"합성 데이터","lat":35.185,"lng":128.8}
+]
