@@ -15,6 +15,9 @@ function render(data){
  rows.filter(r=>r.level==='혼잡').slice(0,3).forEach(r=>{const d=document.createElement('div');d.className='decision';cell(d,r.roadName||r.linkId,'b');cell(d,r.speed+' km/h 관측. 현장 확인 후 안내 검토. 원인 및 우회 효과는 아직 확인되지 않았습니다.','p');el('decisions').append(d);});
  if(!el('decisions').children.length)el('decisions').textContent=rows.length?'혼잡 기준에 해당하는 구간 없음':'관측 데이터 없음';
  el('count').textContent=rows.length;el('congested').textContent=rows.filter(r=>r.level==='혼잡').length;el('average').textContent=rows.length?(rows.reduce((s,r)=>s+r.speed,0)/rows.length).toFixed(1)+' km/h':'—';el('mapped').textContent=mapped;
+ el('data-kind').textContent=data.mode==='demo'?'모의 시나리오':data.mode==='live'?'ITS 실측':'연결 안 됨';
+ el('distribution').replaceChildren();
+ ['혼잡','서행','원활'].forEach(level=>{const count=rows.filter(r=>r.level===level).length;const row=document.createElement('div');row.className='bar-row';const head=document.createElement('div');head.className='bar-head';cell(head,level,'span');cell(head,count+' 구간','span');const track=document.createElement('div');track.className='bar-track';const fill=document.createElement('div');fill.className='bar-fill';fill.style.width=(rows.length?count/rows.length*100:0)+'%';fill.style.background=color(level);track.append(fill);row.append(head,track);el('distribution').append(row);});
  el('status').textContent=data.error||`${data.source} · ${data.mode==='demo'?'교통 수치와 위치는 합성 시나리오':('수집 '+data.fetchedAt+' · 지도 결합 '+mapped+'/'+rows.length)}`;
 }
 const isPages=location.hostname.endsWith('.github.io');
